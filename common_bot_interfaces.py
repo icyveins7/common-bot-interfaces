@@ -39,6 +39,12 @@ class BotContainer:
         token = os.environ[envVar]
         container = cls(ApplicationBuilder().token(token).build())
         return container
+    
+    @classmethod
+    def fromTokenString(cls, token: str):
+        '''Initialisation from a string containing the bot token.'''
+        container = cls(ApplicationBuilder().token(token).build())
+        return container
 
 #%%
 class AliveFilter(MessageFilter):
