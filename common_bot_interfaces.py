@@ -7,6 +7,12 @@ from functools import reduce
 
 #%% This is the base container. Every bot should inherit from this, and this must be included at the end after all mixins.
 # Important: Many, if not all mixins, will assume that the stuff in this class exist. For example, universal filters may be applied to every handler added.
+# All functionality is placed in separate interfaces, which are inherited (mixed-in) in the eventual application-specific class.
+# This means that all mixin interfaces must abide by a few rules:
+# The first is the _addInterfaceHandlers() method. All mixins must implement this method, and should always call super()._addInterfaceHandlers(),
+# so that all other mixins will be able to add their own handlers.
+# The second is that the universal filters is appended to after super().__init__() in the individual init methods. Mixin individual
+# handlers can choose whether to use the universal set of filters in their handler methods.
 class BotContainer:
     def __init__(self, app: Application):
         '''Basic container with the app as a member variable.'''
@@ -62,7 +68,7 @@ class AliveFilter(MessageFilter):
         return message.date.timestamp() > self._t0
 
 
-#%%
+#%% 
 class StatusInterface:
     def __init__(self, *args, **kwargs):
         self._t0 = dt.datetime.now(tz=dt.timezone.utc).timestamp()
