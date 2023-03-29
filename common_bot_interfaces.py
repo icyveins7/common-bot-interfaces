@@ -112,7 +112,7 @@ class ControlInterface:
         )
         os._exit(0)
 
-#%% Experimental admin privilege interface with roles assignment
+#%% Experimental admin privilege filter
 class AdminFilter(MessageFilter):
     '''Prevents messages/commands sent by non-admins from being processed.'''
     def __init__(self, id: int, *args, **kwargs):
@@ -127,36 +127,49 @@ class AdminFilter(MessageFilter):
         print("Msg from: %d\nAdmin: %d" % (message.from_user.id, self._id))
         return message.from_user.id == self._id
 
-class AdminInterface:
+#%% Admin-
+class SystemInterface:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.adminIsSet = False
-        self._roles = dict()
+        self._adminfilter = None
 
     def setAdmin(self, id: int):
-        if self.adminIsSet:
-            raise ValueError("Admin has already been specified!")
-        else:
-            self.adminIsSet = True
-            self.ufilts.append(AdminFilter(id)) # Attach to the universal filters
-
+        self._adminfilter = AdminFilter(id)
+    
     def _addInterfaceHandlers(self):
         super()._addInterfaceHandlers()
-        print("Adding AdminInterface:roles")
-        self._app.add_handler(CommandHandler('roles', self.roles, filters=self.ufilts))
 
-    async def roles(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if self._adminfilter is None:
+            raise ValueError("Specify an admin ID before continuing.")
+        
+        print("Adding SystemInterface:admin")
+        self._app.add_handler(CommandHandler('admin', self.admin, filters=self.ufilts & self._adminfilter))
+        print("Adding SystemInterface:execute")
+        self._app.add_handler(CommandHandler('execute', self.execute, filters=self.ufilts & self._adminfilter))
+
+    async def admin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="Roles:\n %s" % (self._roles)
+            text="You have admin rights."
         )
+
+    async def execute(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        returncode = os.system(context.args[0])
+
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Return code: %d" % returncode
+        )
+
 
 #%%
 if __name__ == "__main__":
-    class GenericBot(AdminInterface, ControlInterface, StatusInterface, BotContainer):
+    import sys
+    class GenericBot(SystemInterface, ControlInterface, StatusInterface, BotContainer):
         pass
     bot = GenericBot.fromEnvVar('TELEGRAM_TEST_TOKEN')
+    bot.setAdmin(int(sys.argv[1]))
     print(GenericBot.__mro__)
     bot.run()
 
