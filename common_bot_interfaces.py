@@ -127,8 +127,11 @@ class AdminFilter(MessageFilter):
         print("Msg from: %d\nAdmin: %d" % (message.from_user.id, self._id))
         return message.from_user.id == self._id
 
-#%% Admin-
-class SystemInterface:
+#%% Admin
+class AdminInterface:
+    """
+    This is the basic admin interface, which provides a way to set the admin and then access the filter via self._adminfilter.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -143,10 +146,8 @@ class SystemInterface:
         if self._adminfilter is None:
             raise ValueError("Specify an admin ID before continuing.")
         
-        print("Adding SystemInterface:admin")
+        print("Adding AdminInterface:admin")
         self._app.add_handler(CommandHandler('admin', self.admin, filters=self.ufilts & self._adminfilter))
-        print("Adding SystemInterface:execute")
-        self._app.add_handler(CommandHandler('execute', self.execute, filters=self.ufilts & self._adminfilter))
 
     async def admin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
@@ -154,8 +155,22 @@ class SystemInterface:
             text="You have admin rights."
         )
 
+
+class SystemInterface(AdminInterface):
+    """
+    This inherits AdminInterface, and adds the ability to invoke system commands.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _addInterfaceHandlers(self):
+        super()._addInterfaceHandlers()
+
+        print("Adding SystemInterface:execute")
+        self._app.add_handler(CommandHandler('execute', self.execute, filters=self.ufilts & self._adminfilter))
+
     async def execute(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        returncode = os.system(context.args[0])
+        returncode = os.system(" ".join(context.args))
 
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
