@@ -1,6 +1,6 @@
 from telegram.ext import Application, ApplicationBuilder, ContextTypes, CommandHandler
 from telegram.ext.filters import MessageFilter
-from telegram import Update
+from telegram import Update, constants
 import os
 import datetime as dt
 from functools import reduce
@@ -177,12 +177,48 @@ class SystemInterface(AdminInterface):
             text="Return code: %d" % returncode
         )
 
+#%% Context filtering
+class PrivateOnlyChatFilter(MessageFilter):
+    """
+    Filter that only allows messages sent to a private chat.
+    """
+
+    def filter(self, message):
+        chat = message.chat
+        return chat.type == constants.ChatType.PRIVATE
+    
+class GroupOnlyChatFilter(MessageFilter):
+    """
+    Filter that only allows messages sent to a group chat.
+    """
+
+    def filter(self, message):
+        chat = message.chat
+        return chat.type == constants.ChatType.GROUP
+
 
 #%%
 if __name__ == "__main__":
     import sys
     class GenericBot(SystemInterface, ControlInterface, StatusInterface, BotContainer):
-        pass
+        def _addInterfaceHandlers(self):
+            super()._addInterfaceHandlers()
+
+            self._app.add_handler(CommandHandler('private', self.testPrivateOnly, filters=self.ufilts & PrivateOnlyChatFilter()))
+            self._app.add_handler(CommandHandler('group', self.testGroupOnly, filters=self.ufilts & GroupOnlyChatFilter()))
+
+        async def testPrivateOnly(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="This is a private message."
+            )
+
+        async def testGroupOnly(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="This is a group message."
+            )
+
     bot = GenericBot.fromEnvVar('TELEGRAM_TEST_TOKEN')
     bot.setAdmin(int(sys.argv[1]))
     print(GenericBot.__mro__)
