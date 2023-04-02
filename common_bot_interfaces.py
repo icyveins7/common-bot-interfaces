@@ -4,6 +4,7 @@ from telegram import Update, constants
 import os
 import datetime as dt
 from functools import reduce
+import subprocess
 
 #%% This is the base container. Every bot should inherit from this, and this must be included at the end after all mixins.
 # Important: Many, if not all mixins, will assume that the stuff in this class exist. For example, universal filters may be applied to every handler added.
@@ -95,22 +96,6 @@ class StatusInterface:
             text="This bot began at %f and has been alive for %fs" % (self._t0, self.elapsedSeconds)
         )
 
-#%%
-class ControlInterface:
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def _addInterfaceHandlers(self):
-        super()._addInterfaceHandlers()
-        print("Adding ControlInterface:shutdown")
-        self._app.add_handler(CommandHandler('shutdown', self.shutdown, filters=self.ufilts))
-
-    async def shutdown(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Shutting down.."
-        )
-        os._exit(0)
 
 #%% Experimental admin privilege filter
 class AdminFilter(MessageFilter):
@@ -177,6 +162,58 @@ class SystemInterface(AdminInterface):
             text="Return code: %d" % returncode
         )
 
+#%%
+class ControlInterface(AdminInterface):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _addInterfaceHandlers(self):
+        super()._addInterfaceHandlers()
+        print("Adding ControlInterface:shutdown")
+        self._app.add_handler(CommandHandler('shutdown', self.shutdown, filters=self.ufilts & self._adminfilter))
+        print("Adding ControlInterface:restart")
+        self._app.add_handler(CommandHandler('restart', self.restart, filters=self.ufilts & self._adminfilter))
+
+    async def shutdown(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Shutting down.."
+        )
+        os._exit(0) # This is the shut down code for the bot runner.
+
+    async def restart(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Restarting.."
+        )
+        os._exit(1) # Any number other than 0 will restart the bot in the bot runner.
+
+class GitInterface(AdminInterface):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _addInterfaceHandlers(self):
+        super()._addInterfaceHandlers()
+        print("Adding GitInterface:gitpull")
+        self._app.add_handler(CommandHandler('gitpull', self.gitPull, filters=self.ufilts & self._adminfilter))
+        print("Adding GitInterface:gitLog")
+        self._app.add_handler(CommandHandler('gitlog', self.gitLog, filters=self.ufilts & self._adminfilter))
+
+    async def gitPull(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        os.system("git pull")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Git pull complete."
+        )
+
+    async def gitLog(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        gitlogstr = subprocess.check_output(['git', 'log', '-1', '--oneline']).strip().decode('utf-8')
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=gitlogstr
+        )
+
+
 #%% Context filtering
 class PrivateOnlyChatFilter(MessageFilter):
     """
@@ -200,7 +237,7 @@ class GroupOnlyChatFilter(MessageFilter):
 #%%
 if __name__ == "__main__":
     import sys
-    class GenericBot(SystemInterface, ControlInterface, StatusInterface, BotContainer):
+    class GenericBot(GitInterface, SystemInterface, ControlInterface, StatusInterface, BotContainer):
         def _addInterfaceHandlers(self):
             super()._addInterfaceHandlers()
 
