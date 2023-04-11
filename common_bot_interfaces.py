@@ -25,6 +25,16 @@ class BotContainer:
         print("Bot has initialised.")
 
     @property
+    def link(self):
+        if self.botname is not None:
+            return "https://t.me/" + self._app.botname
+        else:
+            return "No botname was set."
+        
+    def setBotname(self, botname: str):
+        self.botname = botname
+
+    @property
     def ufilts(self):
         return reduce(lambda x, y: x & y, self._ufilts)
 
