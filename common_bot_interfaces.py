@@ -24,6 +24,9 @@ class BotContainer:
         # Add all handlers
         print("Bot has initialised.")
 
+        # Placeholders
+        self.botname = None
+
     @property
     def link(self):
         if self.botname is not None:
