@@ -1,6 +1,6 @@
 from telegram.ext import Application, ApplicationBuilder, ContextTypes, CommandHandler
-from telegram.ext.filters import MessageFilter
-from telegram import Update, constants
+from telegram.ext.filters import MessageFilter, Regex
+from telegram import Update, constants, helpers
 import os
 import datetime as dt
 from functools import reduce
@@ -27,12 +27,11 @@ class BotContainer:
         # Placeholders
         self.botname = None
 
-    @property
-    def link(self):
-        if self.botname is not None:
-            return "https://t.me/" + self._app.botname
-        else:
-            return "No botname was set."
+    def link(self, start: str=None):
+        """
+        Essentially a quick rewire to helpers.create_deep_linked_url().
+        """
+        return helpers.create_deep_linked_url(self.botname, payload=start)
         
     def setBotname(self, botname: str):
         self.botname = botname
@@ -250,12 +249,19 @@ class GroupOnlyChatFilter(MessageFilter):
 #%%
 if __name__ == "__main__":
     import sys
+
     class GenericBot(GitInterface, SystemInterface, ControlInterface, StatusInterface, BotContainer):
         def _addInterfaceHandlers(self):
             super()._addInterfaceHandlers()
 
             self._app.add_handler(CommandHandler('private', self.testPrivateOnly, filters=self.ufilts & PrivateOnlyChatFilter()))
             self._app.add_handler(CommandHandler('group', self.testGroupOnly, filters=self.ufilts & GroupOnlyChatFilter()))
+            self._app.add_handler(CommandHandler('link', self.testBotLink, filters=self.ufilts))
+            
+            self._app.add_handler(CommandHandler('start', self.startWithParams, filters=self.ufilts & Regex("abc")))
+            # Note that the /start with no params must be at the end of all the other /start handlers.
+            self._app.add_handler(CommandHandler('start', self.start, filters=self.ufilts))
+            
 
         async def testPrivateOnly(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
@@ -269,8 +275,35 @@ if __name__ == "__main__":
                 text="This is a group message."
             )
 
+        async def testBotLink(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+            link = self.link(start="abc-def")
+            print(link)
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                parse_mode=constants.ParseMode.MARKDOWN_V2,
+                text="[Click me](%s)" % link
+            )
+
+        async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+            url = helpers.create_deep_linked_url(self.botname, "abc-def") #, group=True)
+            text = "Feel free to tell your friends about it:\n\n" + url
+
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="This is the start message." + text
+            )
+
+        async def startWithParams(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+            payload = context.args[0]
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="You see this only cause of params: %s" % payload
+            )
+
     bot = GenericBot.fromEnvVar('TELEGRAM_TEST_TOKEN')
     bot.setAdmin(int(sys.argv[1]))
+    if len(sys.argv) > 2:
+        bot.setBotname(sys.argv[2])
     print(GenericBot.__mro__)
     bot.run()
 
